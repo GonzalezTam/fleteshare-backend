@@ -30,6 +30,7 @@ export const config = {
   nodeEnv: validEnvironment,
   port: parseInt(process.env.PORT || '8000', 10),
   mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/fleteshare_local',
+  databaseName: validEnvironment === 'production' ? 'fleteshare_prod' : 'fleteshare_local',
   jwtSecret: process.env.JWT_SECRET || 'default_unsafe_secret',
   isProduction: validEnvironment === 'production',
   isDevelopment: validEnvironment === 'development',
@@ -47,5 +48,5 @@ console.log(`
     🚀 Configuración cargada:
     - Entorno: ${config.nodeEnv}
     - Puerto: ${config.port}
-    - Base de datos: ${config.mongodbUri.split('/').pop()?.split('?')[0]}
+    - Base de datos: ${config.databaseName}
     `);
