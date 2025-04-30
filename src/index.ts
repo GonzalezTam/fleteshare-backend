@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { config } from './config/env';
+import { CONFIG } from './config/env';
 import { connectDB } from './config/database';
 
 // Env vars
@@ -11,7 +11,14 @@ dotenv.config();
 const app = express();
 
 // Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin: CONFIG.corsAllowedOrigins,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -19,17 +26,18 @@ app.use(express.urlencoded({ extended: true }));
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    environment: config.nodeEnv,
+    env: CONFIG.nodeEnv,
     timestamp: new Date().toISOString(),
+    message: 'FletesShare API is up & running',
   });
 });
 
 async function startServer() {
-  await connectDB(config.mongodbUri);
-  app.listen(config.port, () => {
+  await connectDB();
+  app.listen(CONFIG.port, () => {
     console.log(`🚀 Servidor FletesShare iniciado:
-      - Entorno: ${config.nodeEnv}
-      - Puerto: ${config.port}`);
+      - Entorno: ${CONFIG.nodeEnv}
+      - Puerto: ${CONFIG.port}`);
   });
 }
 

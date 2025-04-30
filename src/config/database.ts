@@ -1,15 +1,15 @@
 import mongoose from 'mongoose';
-import { config } from './env';
+import { CONFIG } from './env';
 
 // MongoDB connection method
-export const connectDB = async (uri: string): Promise<void> => {
+export const connectDB = async (): Promise<void> => {
   try {
-    if (!uri) throw new Error('La URI de MongoDB no está definida');
+    // if (!uri) throw new Error('La URI de MongoDB no está definida');
     if (mongoose.connection.readyState === 1) return;
 
     const options: mongoose.ConnectOptions = {};
 
-    if (config.isProduction) {
+    if (CONFIG.isProduction) {
       // Production options
       Object.assign(options, {
         maxPoolSize: 50,
@@ -24,13 +24,13 @@ export const connectDB = async (uri: string): Promise<void> => {
       });
     }
 
-    const dbName = config.isDevelopment ? 'fleteshare_local' : 'fleteshare_prod';
+    const dbName = CONFIG.isDevelopment ? 'fleteshare_local' : 'fleteshare_prod';
     console.log(`Iniciando conexión a la base de datos ${dbName} ...`);
 
-    await mongoose.connect(uri, options);
+    await mongoose.connect(CONFIG.mongodbUri!, options);
 
     // Log available collections in development mode
-    if (config.isDevelopment) {
+    if (CONFIG.isDevelopment) {
       const collections = (await mongoose.connection.db?.listCollections().toArray()) || [];
       if (collections.length === 0) {
         console.log('🔍 No hay colecciones disponibles en la base de datos.');
