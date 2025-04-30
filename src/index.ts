@@ -7,9 +7,6 @@ import { connectDB } from './config/database';
 // Env vars
 dotenv.config();
 
-// Connect to database
-connectDB(config.mongodbUri);
-
 // Initialize express app
 const app = express();
 
@@ -20,12 +17,25 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check route
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).json({
+    status: 'ok',
+    environment: config.nodeEnv,
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Initialize server
-app.listen(config.port, () => {
-  console.log(`💪 Server iniciado en el puerto ${config.port}`);
+async function startServer() {
+  await connectDB(config.mongodbUri);
+  app.listen(config.port, () => {
+    console.log(`🚀 Servidor FletesShare iniciado:
+      - Entorno: ${config.nodeEnv}
+      - Puerto: ${config.port}`);
+  });
+}
+
+startServer().catch(err => {
+  console.error('❌ Error iniciando servidor:', err);
+  process.exit(1);
 });
 
 export default app;

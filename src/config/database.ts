@@ -24,8 +24,8 @@ export const connectDB = async (uri: string): Promise<void> => {
       });
     }
 
-    const dbName = uri.split('/').pop()?.split('?')[0] || 'desconocida';
-    console.log(`🔌 Iniciando conexion a MongoDB. Base de datos: ${dbName}`);
+    const dbName = config.isDevelopment ? 'fleteshare_local' : 'fleteshare_prod';
+    console.log(`Iniciando conexión a la base de datos ${dbName} ...`);
 
     await mongoose.connect(uri, options);
 
@@ -42,13 +42,10 @@ export const connectDB = async (uri: string): Promise<void> => {
       });
     }
   } catch (error) {
-    console.error('❌ Error al conectar MongoDB');
+    console.log('🔌 Error al conectar MongoDB');
     throw error;
   }
 };
-
-// Connection events
-mongoose.connection.on('disconnected', () => console.log('🔌 MongoDB desconectado'));
 
 // Close connection if the process is terminated
 process.on('SIGINT', async () => {
