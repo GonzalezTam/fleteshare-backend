@@ -4,7 +4,6 @@ import fs from 'fs';
 
 // Detect the current environment
 const nodeEnv = process.env.NODE_ENV || 'development';
-// Loading specific environment file
 const envFile = `.env.${nodeEnv}`;
 const envPath = path.resolve(process.cwd(), envFile);
 
@@ -12,14 +11,21 @@ if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
 else dotenv.config();
 
 // Config object to be used throughout the application
-export const config = {
-  nodeEnv: process.env.NODE_ENV || 'development',
+export const CONFIG = {
+  nodeEnv: process.env.NODE_ENV,
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV !== 'production',
-  port: parseInt(process.env.PORT || '8000', 10),
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/fleteshare_local',
-  jwtSecret: process.env.JWT_SECRET || 'default_unsafe_secret',
+  port: process.env.PORT,
+  mongodbUri: process.env.MONGODB_URI,
+  jwtSecret: process.env.JWT_SECRET,
+  corsAllowedOrigins: [
+    process.env.FRONTEND_URL || 'http://localhost:5173',
+    process.env.BACKOFFICE_URL || 'http://localhost:5174',
+  ],
 };
+
+if (!process.env.FRONTEND_URL) console.warn('⚠️  FRONTEND_URL no está definido');
+if (!process.env.BACKOFFICE_URL) console.warn('⚠️  BACKOFFICE_URL no está definido.');
 
 if (!process.env.MONGODB_URI)
   console.warn('⚠️  MONGODB_URI no está definido. Usando valor por defecto.');
