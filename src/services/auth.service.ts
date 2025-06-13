@@ -79,7 +79,7 @@ export const recoverPasswordService = async (body: RecoverPasswordRequest) => {
 
 export const validateTokenService = async (token: string) => {
   try {
-    const decoded = jwt.verify(token, CONFIG.jwtSecret!);
+    const decoded = jwt.verify(token, CONFIG.jwtSecret!) as jwt.JwtPayload;
     return decoded;
   } catch (error) {
     throw new Error('Token inválido o expirado');

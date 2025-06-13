@@ -8,6 +8,10 @@ export interface IUser extends Document {
   username: string;
   password: string;
   role: UserType;
+  phone?: string;
+  licence?: File | null;
+  latitude?: number;
+  longitude?: number;
   isActive: boolean;
   createdBy?: string;
   updatedBy?: string;
@@ -21,6 +25,10 @@ const userSchema = new Schema<IUser>(
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'customer', 'transporter'] },
+    phone: { type: String, required: false },
+    licence: { type: Schema.Types.Mixed, required: false }, // File type can be handled as Mixed
+    latitude: { type: Number, required: false },
+    longitude: { type: Number, required: false },
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
