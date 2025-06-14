@@ -8,7 +8,9 @@
     "build": "npx tsc && tsc-alias",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.{ts,json}\""
+    "format": "prettier --write \"src/**/*.{ts,json}\"",
+    "db:wipe": "ts-node scripts/wipe.ts",
+    "db:simpleSeed": "ts-node scripts/simpleSeed.ts"
   },
   "keywords": [],
   "author": "",
