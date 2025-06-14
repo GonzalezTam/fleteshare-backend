@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import { User } from '@/models/User.model';
 import { CONFIG } from '@/config/env.config';
 import { LoginRequest, RegisterRequest, RecoverPasswordRequest } from '@/types/auth.types';
+import { createWelcomeNotification } from '@/services/notification.service';
 
 export const registerService = async (registerData: RegisterRequest) => {
   const { firstName, lastName, username, password, confirmPassword, role, phone, licence } =
@@ -14,10 +15,7 @@ export const registerService = async (registerData: RegisterRequest) => {
   });
 
   if (existingUser) throw new Error('El nombre de usuario ya existe');
-
-  if (password !== confirmPassword) {
-    throw new Error('Las contraseñas no coinciden');
-  }
+  if (password !== confirmPassword) throw new Error('Las contraseñas no coinciden');
 
   // Crear nuevo usuario
   const user = new User({
@@ -32,13 +30,30 @@ export const registerService = async (registerData: RegisterRequest) => {
 
   await user.save();
 
+  try {
+    // Notificación de bienvenida después de guardar el usuario
+    await createWelcomeNotification((user._id as string).toString(), user.role);
+  } catch (notificationError) {
+    console.error('Error al crear notificación de bienvenida:', notificationError);
+  }
+
   return {
     id: (user._id as string).toString(),
     username: user.username,
     role: user.role,
-    token: jwt.sign({ id: user._id, username: user.username, role: user.role }, CONFIG.jwtSecret!, {
-      expiresIn: '24h',
-    }),
+    isValidated: user.isValidated,
+    token: jwt.sign(
+      {
+        id: user._id,
+        username: user.username,
+        role: user.role,
+        isValidated: user.isValidated,
+      },
+      CONFIG.jwtSecret!,
+      {
+        expiresIn: '24h',
+      }
+    ),
   };
 };
 
@@ -57,7 +72,12 @@ export const loginService = async (body: LoginRequest) => {
 
   // Generar token
   const token = jwt.sign(
-    { id: user._id, username: user.username, role: user.role },
+    {
+      id: user._id,
+      username: user.username,
+      role: user.role,
+      isValidated: user.isValidated,
+    },
     CONFIG.jwtSecret!,
     { expiresIn: '24h' }
   );
@@ -66,6 +86,7 @@ export const loginService = async (body: LoginRequest) => {
     id: (user._id as string).toString(),
     username: user.username,
     role: user.role,
+    isValidated: user.isValidated,
     token,
   };
 };
