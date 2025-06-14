@@ -5,7 +5,6 @@ export const getCurrentUser = async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     const user = await getCurrentUserDataService(token);
-    console.log('User data:', user);
     res.status(200).json({
       result: user,
       message: 'Datos del usuario obtenidos correctamente',

@@ -3,16 +3,17 @@ import bcrypt from 'bcryptjs';
 import { UserType } from '@/types/user.types';
 
 export interface IUser extends Document {
-  firstName: string;
-  lastName: string;
   username: string;
   password: string;
   role: UserType;
+  firstName?: string;
+  lastName?: string;
   phone?: string;
   licence?: File | null;
   latitude?: number;
   longitude?: number;
   isActive: boolean;
+  isValidated: boolean;
   createdBy?: string;
   updatedBy?: string;
   comparePassword(password: string): Promise<boolean>;
@@ -20,16 +21,17 @@ export interface IUser extends Document {
 
 const userSchema = new Schema<IUser>(
   {
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'customer', 'transporter'] },
+    firstName: { type: String, required: false },
+    lastName: { type: String, required: false },
     phone: { type: String, required: false },
-    licence: { type: Schema.Types.Mixed, required: false }, // File type can be handled as Mixed
+    licence: { type: Schema.Types.Mixed, required: false },
     latitude: { type: Number, required: false },
     longitude: { type: Number, required: false },
     isActive: { type: Boolean, default: true },
+    isValidated: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
