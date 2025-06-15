@@ -11,9 +11,12 @@ import {
 const router = Router();
 router.use(authenticateToken);
 
+// any authenticated user routes
 router.get('/', getNotifications);
 router.put('/:id/read', markNotificationAsRead);
 router.delete('/:id', deleteNotification);
+
+// admin required routes
 router.post('/', requireAdmin, createNotification);
 
 export default router;

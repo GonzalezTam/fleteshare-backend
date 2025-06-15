@@ -1,17 +1,22 @@
 import { Router } from 'express';
 import { authenticateToken } from '@/middlewares/auth.middleware';
 import { requireAdmin } from '@/middlewares/role.middleware';
-import { getCurrentUser } from '@/controllers/user.controller';
+import {
+  getCurrentUser,
+  rejectValidationUser,
+  updateUserProfile,
+  validateUser,
+} from '@/controllers/user.controller';
 
 const router = Router();
 router.use(authenticateToken);
 
+// any authenticated user routes
 router.get('/current', getCurrentUser);
+router.put('/profile/id', updateUserProfile);
 
-//router.post('/', createUser);
-//router.get('/', getUsers);
-//router.get('/:id', getUserById);
-//router.put('/:id', updateUser);
-//router.delete('/:id', deleteUser);
+// admin required routes
+router.put('/validateUser/:id', validateUser, requireAdmin);
+router.put('/rejectValidation/:id', rejectValidationUser, requireAdmin);
 
 export default router;

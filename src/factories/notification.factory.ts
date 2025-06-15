@@ -16,21 +16,29 @@ export class NotificationFactory {
 
       case 'transporter':
         return {
-          subject: '¡Cuenta creada exitosamente!',
-          body: 'Tu cuenta de transportista ha sido creada y está en proceso de validación. Te notificaremos cuando haya sido aprobada y puedas comenzar a usar la plataforma.',
+          subject: '¡Bienvenido a nuestra plataforma!',
+          body: 'Te damos la bienvenida. Una vez que tu cuenta sea validada, podrás acceder a todas las funcionalidades. Ademas, te recomendamos completar todos los datos de tu perfil desde la sección "Mi Perfil".',
           type: 'info',
         };
 
       case 'admin':
         return {
           subject: '¡Bienvenido al panel administrativo!',
-          body: 'Has accedido al backoffice administrativo. Desde aquí podrás gestionar usuarios, transportistas y todas las operaciones de la plataforma.',
+          body: 'Has accedido al backoffice administrativo. Desde acá podrás ver metricas, gestionar usuarios y demas operaciones de la plataforma.',
           type: 'info',
         };
 
       default:
         throw new Error('Rol de usuario no válido para notificación de bienvenida');
     }
+  }
+
+  static createProfileCompletionNotification(): NotificationTemplate {
+    return {
+      subject: 'Perfil completado exitosamente',
+      body: 'Tu perfil ha sido completado exitosamente. Ahora podés disfrutar de todas las funcionalidades de la plataforma.',
+      type: 'success',
+    };
   }
 
   // Notificaciones de validación
@@ -42,7 +50,7 @@ export class NotificationFactory {
       case 'approved':
         return {
           subject: '¡Cuenta validada exitosamente!',
-          body: 'Tu cuenta de transportista ha sido validada correctamente. Ya puedes comenzar a usar todas las funcionalidades de la plataforma.',
+          body: 'Tu cuenta de transportista ha sido validada correctamente. Ya podés comenzar a usar todas las funcionalidades de la plataforma.',
           type: 'success',
         };
 

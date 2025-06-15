@@ -1,16 +1,15 @@
 export type UserType = 'admin' | 'customer' | 'transporter';
 
-export interface UserCreateRequest {
-  username: string;
-  password: string;
-  role?: UserType;
-}
-
-export interface UserUpdateRequest {
+export interface UserUpdateProfileBodyRequest {
   username?: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  licence?: File | null;
+  latitude?: number;
+  longitude?: number;
   password?: string;
-  isActive?: boolean;
-  role?: UserType;
+  confirmPassword?: string;
 }
 
 export interface UserQuery {
