@@ -10,17 +10,15 @@ import {
 
 export const getNotificationsService = async (query: NotificationQuery) => {
   const userId = query?.userId;
-  if (userId && !mongoose.Types.ObjectId.isValid(userId))
-    throw new Error('ID de usuario inválido');
-  const { readed, page, limit, offset } = query;
+  if (userId && !mongoose.Types.ObjectId.isValid(userId)) throw new Error('ID de usuario inválido');
+  const { readed, page, limit } = query;
 
   let filters: any = { userId };
   if (readed !== undefined) filters.readed = readed === 'true';
 
   const currentPage = parseInt(page?.toString() || '1');
   const itemsPerPage = parseInt(limit?.toString() || '10');
-  const offsetValue = parseInt(offset?.toString() || '0');
-  const skip = (currentPage - 1) * itemsPerPage + offsetValue;
+  const skip = (currentPage - 1) * itemsPerPage;
 
   const [notifications, totalItems, unreadCount, allCount] = await Promise.all([
     Notification.find(filters).sort({ createdAt: -1 }).skip(skip).limit(itemsPerPage),
@@ -42,22 +40,31 @@ export const getNotificationsService = async (query: NotificationQuery) => {
       totalPages,
       totalItems,
       itemsPerPage,
-      offset: offsetValue,
     },
   };
 };
 
 export const markNotificationAsReadService = async (id: string) => {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('ID de notificación inválido');
-  const notification = await Notification.findByIdAndUpdate(id, { readed: true }, { new: true });
+  const notification = await Notification.findById(id);
   if (!notification) throw new Error('Notificación no encontrada');
-  return notification;
+  if (notification.readed) throw new Error('La notificación ya está marcada como leída');
+
+  const updatedNotification = await Notification.findByIdAndUpdate(
+    id,
+    { readed: true },
+    { new: true }
+  );
+  return updatedNotification;
 };
 
 export const deleteNotificationService = async (id: string) => {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('ID de notificación inválido');
-  const notification = await Notification.findByIdAndDelete(id);
+
+  const notification = await Notification.findById(id);
   if (!notification) throw new Error('Notificación no encontrada');
+
+  await Notification.findByIdAndDelete(id);
   return notification;
 };
 
@@ -83,6 +90,11 @@ export const createNotificationService = async (data: NotificationCreateRequest)
 
 export const createWelcomeNotification = async (userId: string, userRole: UserType) => {
   const template = NotificationFactory.createWelcomeNotification(userRole);
+  return await createNotificationService({ template, userId });
+};
+
+export const createProfileCompletionNotification = async (userId: string) => {
+  const template = NotificationFactory.createProfileCompletionNotification();
   return await createNotificationService({ template, userId });
 };
 

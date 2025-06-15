@@ -12,8 +12,9 @@ export interface IUser extends Document {
   licence?: File | null;
   latitude?: number;
   longitude?: number;
-  isActive: boolean;
+  isProfileCompleted: boolean;
   isValidated: boolean;
+  isActive: boolean;
   createdBy?: string;
   updatedBy?: string;
   comparePassword(password: string): Promise<boolean>;
@@ -30,8 +31,14 @@ const userSchema = new Schema<IUser>(
     licence: { type: Schema.Types.Mixed, required: false },
     latitude: { type: Number, required: false },
     longitude: { type: Number, required: false },
+    isProfileCompleted: { type: Boolean, default: false },
+    isValidated: {
+      type: Boolean,
+      default: function () {
+        return this.role === 'admin' || this.role === 'customer';
+      },
+    },
     isActive: { type: Boolean, default: true },
-    isValidated: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },

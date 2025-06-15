@@ -10,7 +10,6 @@ export interface NotificationQuery {
   readed?: string; // 'true' | 'false'
   page?: string | number;
   limit?: string | number;
-  offset?: string | number;
 }
 
 export interface NotificationTemplate {
