@@ -26,7 +26,7 @@ API RESTful construida con Node.js, Express y TypeScript, conectada a MongoDB y 
 
 MongoDB Compass es una interfaz gráfica que te permite ver y administrar tus bases de datos de forma visual, sin usar la terminal.
 
-1. Ve a https://www.mongodb.com/try/download/compass y descargá la versión para tu sistema operativo.
+1. Ir a https://www.mongodb.com/try/download/compass y descargar la versión para tu sistema operativo.
 2. Instalá Compass siguiendo los pasos del instalador.
 3. Abrí MongoDB Compass.
 4. En el campo de conexión, ingresá:
@@ -72,7 +72,7 @@ BACKOFFICE_URL=http://localhost:5174
 
 ## Configura tu base de datos MongoDB:
 
-Asegúrate de tener una instancia de MongoDB corriendo localmente o usa una URI remota.
+Asegurate de tener una instancia de MongoDB corriendo localmente o usa una URI remota.
 
 ## Scripts útiles
 
@@ -82,7 +82,23 @@ Asegúrate de tener una instancia de MongoDB corriendo localmente o usa una URI 
 - `npm run db:wipe` — Borra **todas** las colecciones y datos de la base de datos de desarrollo (`fleteshare_local`). Útil para empezar desde cero, pero ¡elimina todo! Solo usar en entorno local.
 - `npm run db:simpleSeed` — Inserta usuarios y datos de prueba en la base de datos. Ideal para tener datos de ejemplo rápidamente y probar la app sin tener que registrarlos manualmente.
 
-## Datos de prueba
+## Estructura del proyecto (WIP)
+
+```
+src/
+  index.ts                # Punto de entrada principal
+  config/                 # Configuración de entorno, base de datos, cloudinary, multer
+  controllers/            # Lógica de endpoints (auth, usuario, notificaciones)
+  middlewares/            # Middlewares de autenticación, roles, etc.
+  models/                 # Modelos de Mongoose
+  routes/                 # Definición de rutas Express
+  scripts/                # Scripts CLI para desarrollo (seed, wipe)
+  services/               # Lógica de negocio y acceso a datos
+  types/                  # Tipos TypeScript compartidos
+  utils/                  # Utilidades varias
+```
+
+## Insertar datos de prueba (opcional)
 
 Al ejecutar `npm run db:simpleSeed` se crean automáticamente varias cuentas de usuario para que puedas probar la aplicación sin tener que registrarlas manualmente. Los datos de acceso son:
 
@@ -110,22 +126,6 @@ Al ejecutar `npm run db:simpleSeed` se crean automáticamente varias cuentas de 
   - Email: `transportista2@mail.com`
   - Contraseña: `camion123`
 
-## Estructura del proyecto (WIP)
-
-```
-src/
-  index.ts                # Punto de entrada principal
-  config/                 # Configuración de entorno, base de datos, cloudinary, multer
-  controllers/            # Lógica de endpoints (auth, usuario, notificaciones)
-  middlewares/            # Middlewares de autenticación, roles, etc.
-  models/                 # Modelos de Mongoose
-  routes/                 # Definición de rutas Express
-  scripts/                # Scripts CLI para desarrollo (seed, wipe)
-  services/               # Lógica de negocio y acceso a datos
-  types/                  # Tipos TypeScript compartidos
-  utils/                  # Utilidades varias
-```
-
 ## Levantar el proyecto en desarrollo
 
 1. Asegúrate de tener tu base de datos MongoDB corriendo.
@@ -136,13 +136,5 @@ npm run dev
 ```
 
 El backend estará disponible en `http://localhost:8000` (o el puerto que definas en tu `.env`).
-
-## Endpoints principales (WIP)
-
-- `/api/auth` — Autenticación y registro
-- `/api/users` — Gestión de usuarios
-- `/api/notifications` — Notificaciones
-
-Consulta el código fuente para ver los endpoints y payloads específicos.
 
 > _Actualizado: 16 de junio de 2025_ (WIP)
