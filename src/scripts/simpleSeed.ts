@@ -282,11 +282,6 @@ const completeTransporterProfile = async (
         plate: 'ABC123',
         dimensions: { length: 420, width: 200, height: 220 },
       },
-      license: {
-        data: licenseImageBuffer,
-        filename: 'transporter_license_test.jpg',
-        contentType: 'image/jpeg',
-      },
     };
 
     const updatedProfile = await updateUserProfileService(
