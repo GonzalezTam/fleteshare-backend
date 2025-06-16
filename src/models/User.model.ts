@@ -1,19 +1,29 @@
 import { Schema, model, Document } from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { UserType } from '@/types/user.types';
+import { addressSchema } from './schemas/address.schema';
+import { vehicleSchema } from './schemas/vehicle.schema';
+import { UserLicenseStatus, UserRole } from '@/types/user.types';
+import { IAddress } from '@/types/freight.types';
 
 export interface IUser extends Document {
   username: string;
   password: string;
-  role: UserType;
+  role: UserRole;
   firstName?: string;
   lastName?: string;
   phone?: string;
-  licence?: File | null;
-  latitude?: number;
-  longitude?: number;
+  address?: IAddress;
+  vehicle?: {
+    plate: string;
+    dimensions: {
+      length: number;
+      width: number;
+      height: number;
+    };
+  };
+  licenseUrl?: string;
+  licenseStatus?: UserLicenseStatus;
   isProfileCompleted: boolean;
-  isValidated: boolean;
   isActive: boolean;
   createdBy?: string;
   updatedBy?: string;
@@ -28,16 +38,15 @@ const userSchema = new Schema<IUser>(
     firstName: { type: String, required: false },
     lastName: { type: String, required: false },
     phone: { type: String, required: false },
-    licence: { type: Schema.Types.Mixed, required: false },
-    latitude: { type: Number, required: false },
-    longitude: { type: Number, required: false },
-    isProfileCompleted: { type: Boolean, default: false },
-    isValidated: {
-      type: Boolean,
-      default: function () {
-        return this.role === 'admin' || this.role === 'customer';
-      },
+    address: { type: addressSchema, required: false },
+    vehicle: { type: vehicleSchema, required: false },
+    licenseUrl: { type: String, required: false },
+    licenseStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      required: false,
     },
+    isProfileCompleted: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

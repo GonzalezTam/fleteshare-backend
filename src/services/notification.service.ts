@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { UserType } from '@/types/user.types';
+import { UserRole } from '@/types/user.types';
 import { Notification } from '@/models/Notification.model';
 import { NotificationFactory } from '@/factories/notification.factory';
 import {
@@ -88,7 +88,7 @@ export const createNotificationService = async (data: NotificationCreateRequest)
   return notification;
 };
 
-export const createWelcomeNotification = async (userId: string, userRole: UserType) => {
+export const createWelcomeNotification = async (userId: string, userRole: UserRole) => {
   const template = NotificationFactory.createWelcomeNotification(userRole);
   return await createNotificationService({ template, userId });
 };

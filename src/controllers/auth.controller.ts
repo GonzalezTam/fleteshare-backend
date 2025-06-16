@@ -8,6 +8,14 @@ import {
 
 export const register = async (req: Request, res: Response) => {
   try {
+    // Si hay archivo, agregarlo al body
+    if (req.file) {
+      req.body.license = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype,
+        filename: req.file.originalname,
+      };
+    }
     const result = await registerService(req.body);
     res.status(201).json({ result, message: 'Usuario registrado exitosamente' });
   } catch (error) {

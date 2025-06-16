@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
+import { parseJsonFields } from '@/utils/formData.utils';
+import { AuthenticatedRequest } from '@/types/auth.types';
 import {
   getCurrentUserDataService,
   updateUserProfileService,
   validateUserService,
   rejectValidationUserService,
 } from '@/services/user.service';
-import { AuthenticatedRequest } from '@/types/auth.types';
 
 export const getCurrentUser = async (req: Request, res: Response) => {
   try {
@@ -24,6 +25,18 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 export const updateUserProfile = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const updatedBy = req.user?.id;
+
+    // Si hay archivo de licencia, agregarlo al body en el formato correcto
+    if (req.file) {
+      req.body.license = {
+        data: req.file.buffer,
+        contentType: req.file.mimetype,
+        filename: req.file.originalname,
+      };
+    }
+
+    req.body = parseJsonFields(req.body, ['license']);
+
     const result = await updateUserProfileService(req.params?.id, req.body, updatedBy);
     res.status(200).json({
       message: 'Perfil de usuario actualizado correctamente',

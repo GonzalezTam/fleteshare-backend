@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { User } from '@/models/User.model';
 import { UserUpdateProfileBodyRequest } from '@/types/user.types';
 import { validateTokenService } from './auth.service';
+import { uploadToCloudinary } from '@/services/cloudinary.service';
 import {
   createProfileCompletionNotification,
   createValidationNotification,
@@ -44,16 +45,44 @@ export const updateUserProfileService = async (
     await createProfileCompletionNotification(id);
   }
 
-  const user = await User.findByIdAndUpdate(
-    id,
-    {
-      ...updateBody,
-      isProfileCompleted: profileCompleted,
-      updatedBy,
-      updatedAt: new Date(),
-    },
-    { new: true }
-  ).select('-password');
+  // Preparar los datos de actualización
+  let userData: any = {
+    firstName: updateBody.firstName,
+    lastName: updateBody.lastName,
+    phone: updateBody.phone,
+    isProfileCompleted: profileCompleted,
+    updatedBy,
+    updatedAt: new Date(),
+  };
+
+  if (updateBody.address) userData.address = updateBody.address;
+
+  if (updateBody.vehicle) userData.vehicle = updateBody.vehicle;
+
+  // Manejar la actualización de la licencia si se proporciona
+  if (updateBody.license) {
+    try {
+      const result = await uploadToCloudinary(updateBody.license.data, {
+        folder: 'fleteshare/licenses',
+        public_id: `license_${existingUser.username}_${Date.now()}`,
+      });
+      userData.licenseUrl = result.secure_url;
+      userData.licenseStatus = 'pending'; // Resetear estado cuando se actualiza la licencia
+    } catch (error) {
+      console.error('Error al subir licencia a Cloudinary:', error);
+      throw new Error('Error al procesar la imagen de licencia');
+    }
+  }
+
+  // Remover campos undefined para evitar que se actualicen con valores undefined
+  Object.keys(userData).forEach(key => {
+    if (userData[key] === undefined) {
+      delete userData[key];
+    }
+  });
+
+  const user = await User.findByIdAndUpdate(id, userData, { new: true }).select('-password');
+
   if (!user) throw new Error('Error al actualizar el usuario');
   return user;
 };
@@ -62,7 +91,7 @@ export const validateUserService = async (id: string, updatedBy: string) => {
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('ID de usuario inválido');
   const user = await User.findOneAndUpdate(
     { _id: id, isActive: true },
-    { isValidated: true, updatedBy, updatedAt: new Date() },
+    { licenseStatus: 'approved', updatedBy, updatedAt: new Date() },
     { new: true }
   ).select('-password');
 
@@ -84,7 +113,7 @@ export const rejectValidationUserService = async (
   if (!mongoose.Types.ObjectId.isValid(id)) throw new Error('ID de usuario inválido');
   const user = await User.findOneAndUpdate(
     { _id: id, isActive: true },
-    { isValidated: false, updatedBy, updatedAt: new Date() },
+    { licenseStatus: 'rejected', updatedBy, updatedAt: new Date() },
     { new: true }
   ).select('-password');
   if (!user) throw new Error('Error al intentar rechazar la validación del usuario');
