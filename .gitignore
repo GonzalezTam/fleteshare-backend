@@ -11,7 +11,7 @@ yarn-error.log*
 # Entorno
 .env
 .env.*
-!.env.development
+.env.development
 !.env.example
 
 # IDE
