@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { UserType } from './user.types';
+import { UserLicense, UserRole } from './user.types';
 
 export interface RegisterRequest {
   firstName: string;
@@ -7,9 +7,9 @@ export interface RegisterRequest {
   username: string;
   password: string;
   confirmPassword: string;
-  role: UserType;
+  role: UserRole;
   phone: string;
-  licence?: File | null;
+  license?: UserLicense | null;
 }
 
 export interface RegisterResponse {
@@ -17,7 +17,7 @@ export interface RegisterResponse {
   user: {
     id: string;
     username: string;
-    role: UserType;
+    role: UserRole;
     token: string;
   };
 }
@@ -49,6 +49,6 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     username: string;
-    role: UserType;
+    role: UserRole;
   };
 }

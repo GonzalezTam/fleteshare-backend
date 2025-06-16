@@ -9,21 +9,24 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write \"src/**/*.{ts,json}\"",
-    "db:wipe": "ts-node scripts/wipe.ts",
-    "db:simpleSeed": "ts-node scripts/simpleSeed.ts"
+    "db:wipe": "ts-node src/scripts/wipe.ts",
+    "db:simpleSeed": "ts-node src/scripts/simpleSeed.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@types/multer": "^1.4.13",
     "bcryptjs": "^3.0.2",
+    "cloudinary": "^2.6.1",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.14.0"
+    "mongoose": "^8.14.0",
+    "multer": "^2.0.1"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

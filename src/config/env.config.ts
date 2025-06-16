@@ -16,6 +16,9 @@ export const CONFIG = {
   isProduction: process.env.NODE_ENV === 'production',
   isDevelopment: process.env.NODE_ENV !== 'production',
   port: process.env.PORT,
+  cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+  cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+  cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
   mongodbUri: process.env.MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET,
   corsAllowedOrigins: [
@@ -26,6 +29,16 @@ export const CONFIG = {
 
 if (!process.env.FRONTEND_URL) console.warn('⚠️  FRONTEND_URL no está definido');
 if (!process.env.BACKOFFICE_URL) console.warn('⚠️  BACKOFFICE_URL no está definido.');
+
+if (
+  !process.env.CLOUDINARY_CLOUD_NAME ||
+  !process.env.CLOUDINARY_API_KEY ||
+  !process.env.CLOUDINARY_API_SECRET
+) {
+  console.warn(
+    '⚠️  Configuración de Cloudinary incompleta. Verifica CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET.'
+  );
+}
 
 if (!process.env.MONGODB_URI)
   console.warn('⚠️  MONGODB_URI no está definido. Usando valor por defecto.');

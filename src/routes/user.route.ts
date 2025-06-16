@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken } from '@/middlewares/auth.middleware';
 import { requireAdmin } from '@/middlewares/role.middleware';
+import { uploadLicense } from '@/utils/upload.utils';
 import {
   getCurrentUser,
   rejectValidationUser,
@@ -13,7 +14,7 @@ router.use(authenticateToken);
 
 // any authenticated user routes
 router.get('/current', getCurrentUser);
-router.put('/profile/id', updateUserProfile);
+router.put('/profile/:id', uploadLicense, updateUserProfile);
 
 // admin required routes
 router.put('/validateUser/:id', validateUser, requireAdmin);
