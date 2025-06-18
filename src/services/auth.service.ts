@@ -4,6 +4,7 @@ import { CONFIG } from '@/config/env.config';
 import { LoginRequest, RegisterRequest, RecoverPasswordRequest } from '@/types/auth.types';
 import { createWelcomeNotification } from '@/services/notification.service';
 import { uploadToCloudinary } from '@/services/cloudinary.service';
+import { getAppTypeFromOrigin, isRoleAllowedForApp } from '@/utils/app.utils';
 
 export const registerService = async (registerData: RegisterRequest) => {
   const { firstName, lastName, username, password, confirmPassword, role, phone, license } =
@@ -78,7 +79,7 @@ export const registerService = async (registerData: RegisterRequest) => {
   };
 };
 
-export const loginService = async (body: LoginRequest) => {
+export const loginService = async (body: LoginRequest, origin?: string) => {
   const { username, password } = body;
 
   // Buscar usuario
@@ -86,6 +87,15 @@ export const loginService = async (body: LoginRequest) => {
   if (!user) throw new Error('Usuario incorrecto');
 
   if (!user.isActive) throw new Error('Usuario deshabilitado');
+
+  const appType = getAppTypeFromOrigin(origin);
+
+  if (!isRoleAllowedForApp(user.role, appType)) {
+    let errorMessage = 'No tenés permisos para acceder a esta aplicación';
+    if (appType === 'main' && user.role === 'admin')
+      errorMessage = 'Utilizá el backoffice para ingresar como administrador';
+    throw new Error(errorMessage);
+  }
 
   // Verificar contraseña
   const isPasswordValid = await user.comparePassword(password);

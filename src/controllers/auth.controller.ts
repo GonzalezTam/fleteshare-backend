@@ -26,7 +26,8 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const result = await loginService(req.body);
+    const origin = req.headers.origin || req.headers.referer;
+    const result = await loginService(req.body, origin);
     res.status(200).json({
       result,
       message: 'Inicio de sesión exitoso',
