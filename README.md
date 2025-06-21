@@ -59,13 +59,17 @@ Creá el archivo `.env.development` (usando el .env.example de ejemplo) en la ra
 ```env
 NODE_ENV=development
 PORT=8000
-CLOUDINARY_CLOUD_NAME=tu_cloud_name
-CLOUDINARY_API_KEY=tu_api_key
-CLOUDINARY_API_SECRET=tu_api_secret
-MONGODB_URI=mongodb://localhost:27017/fleteshare_local
-JWT_SECRET=una_clave_secreta_segura
 FRONTEND_URL=http://localhost:5173
 BACKOFFICE_URL=http://localhost:5174
+MONGODB_URI=mongodb://localhost:27017/fleteshare_local
+JWT_SECRET=fleteshare_dev_secret
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+FLETESHARE_FEE=0.1
+MARGIN_PERCENTAGE=0.2
+FIXED_VOLUME_PRICE=10000
+FUEL_PRICE_PER_LITER=1500
 ```
 
 > **Importante:** No subas tus archivos `.env*` al repositorio. Ya están en `.gitignore`.
@@ -90,7 +94,7 @@ src/
   config/                 # Configuración de entorno, base de datos, cloudinary, multer
   controllers/            # Lógica de endpoints (auth, usuario, notificaciones)
   middlewares/            # Middlewares de autenticación, roles, etc.
-  models/                 # Modelos de Mongoose
+  models/                 # Modelos de Mongoose y schemas
   routes/                 # Definición de rutas Express
   scripts/                # Scripts CLI para desarrollo (seed, wipe)
   services/               # Lógica de negocio y acceso a datos
@@ -137,4 +141,4 @@ npm run dev
 
 El backend estará disponible en `http://localhost:8000` (o el puerto que definas en tu `.env`).
 
-> _Actualizado: 16 de junio de 2025_ (WIP)
+> _Actualizado: 21 de junio de 2025_ (WIP)

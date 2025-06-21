@@ -1,6 +1,14 @@
 import { Request } from 'express';
 import { UserLicense, UserRole } from './user.types';
 
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    username: string;
+    role: UserRole;
+  };
+}
+
 export interface RegisterRequest {
   firstName: string;
   lastName: string;
