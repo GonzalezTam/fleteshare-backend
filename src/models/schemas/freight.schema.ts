@@ -1,4 +1,5 @@
 import { Schema } from 'mongoose';
+import { FREIGHT_CONSTANTS } from '@/utils/constants';
 import { IFreight, IFreightParticipant } from '../freight.model';
 import { addressSchema } from './address.schema';
 import { participantSchema } from './participant.schema';
@@ -53,6 +54,7 @@ export const freightSchema = new Schema<IFreight>(
     availableVolumeM3: {
       type: Number,
       required: true,
+      default: 0,
       min: 0,
     },
     scheduledDate: {
@@ -133,8 +135,6 @@ freightSchema.methods.isWithinRange = function (
   userDeliveryLat: number,
   userDeliveryLng: number
 ): boolean {
-  const MAX_DISTANCE_KM = 20;
-
   // Verificar que tanto el pickup como el delivery estén dentro del rango
   // de al menos un participante existente
   return this.participants.some((participant: IFreightParticipant) => {
@@ -151,7 +151,10 @@ freightSchema.methods.isWithinRange = function (
       participant.deliveryAddress.longitude
     );
 
-    return pickupDistance <= MAX_DISTANCE_KM && deliveryDistance <= MAX_DISTANCE_KM;
+    return (
+      pickupDistance <= FREIGHT_CONSTANTS.MAX_DISTANCE_RANGE_KM &&
+      deliveryDistance <= FREIGHT_CONSTANTS.MAX_DISTANCE_RANGE_KM
+    );
   });
 };
 
