@@ -28,7 +28,7 @@ export const freightSchema = new Schema<IFreight>(
     },
     status: {
       type: String,
-      enum: ['requested', 'taken', 'started', 'going', 'finished', 'canceled'],
+      enum: ['requested', 'taken', 'started', 'finished', 'canceled'],
       default: 'requested',
       index: true,
     },

@@ -236,7 +236,7 @@ export const assignTransporterService = async (
   // Verificar que no tenga otro flete activo
   const activeFreight = await Freight.findOne({
     transporterId: transporterId,
-    status: { $in: ['taken', 'started', 'going'] },
+    status: { $in: ['taken', 'started'] },
   });
 
   if (activeFreight) throw new Error('El transportista ya tiene un flete activo');
@@ -332,8 +332,7 @@ export const updateFreightStatusService = async (
   const validTransitions: { [key: string]: string[] } = {
     requested: ['taken', 'canceled'],
     taken: ['started', 'canceled'],
-    started: ['going', 'canceled'],
-    going: ['finished', 'canceled'],
+    started: ['finished', 'canceled'],
     finished: [],
     canceled: [],
   };
@@ -343,7 +342,7 @@ export const updateFreightStatusService = async (
     throw new Error(`No se puede cambiar el estado de '${currentStatus}' a '${newStatus}'`);
 
   // Solo el transportista puede cambiar a estados operativos
-  if (['started', 'going', 'finished'].includes(newStatus) && !isTransporter)
+  if (['started', 'finished'].includes(newStatus) && !isTransporter)
     throw new Error('Solo el transportista puede actualizar el estado del flete');
 
   // Actualizar estado
@@ -368,8 +367,7 @@ export const updateFreightStatusService = async (
   // Crear notificaciones según el nuevo estado
   const statusMessages: { [key: string]: string } = {
     taken: 'Tu flete ha sido tomado por un transportista',
-    started: 'Tu flete ha comenzado',
-    going: 'Tu flete está en camino',
+    started: 'Tu flete está en camino',
     finished: 'Tu flete ha sido completado exitosamente',
     canceled: `Tu flete ha sido cancelado${cancellationReason ? `: ${cancellationReason}` : ''}`,
   };

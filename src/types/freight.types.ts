@@ -1,4 +1,4 @@
-export type FreightStatus = 'requested' | 'taken' | 'started' | 'going' | 'finished' | 'canceled';
+export type FreightStatus = 'requested' | 'taken' | 'started' | 'finished' | 'canceled';
 
 export interface IAddress {
   street: string;
