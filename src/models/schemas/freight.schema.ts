@@ -80,6 +80,7 @@ export const freightSchema = new Schema<IFreight>(
           participantIndex: { type: Number, required: true },
           address: { type: addressSchema, required: true },
           estimatedTime: { type: Date },
+          visited: { type: Boolean, default: false },
         },
       ],
       deliverySequence: [
@@ -87,6 +88,7 @@ export const freightSchema = new Schema<IFreight>(
           participantIndex: { type: Number, required: true },
           address: { type: addressSchema, required: true },
           estimatedTime: { type: Date },
+          visited: { type: Boolean, default: false },
         },
       ],
       totalDistance: { type: Number, required: true, min: 0 },
@@ -101,7 +103,7 @@ export const freightSchema = new Schema<IFreight>(
 freightSchema.index({ createdBy: 1, status: 1 });
 freightSchema.index({ transporterId: 1, status: 1 });
 freightSchema.index({ status: 1, scheduledDate: 1 });
-freightSchema.index({ 'participants.userId': 1 });
+freightSchema.index({ 'participants.user': 1 });
 freightSchema.index({
   'participants.pickupAddress.latitude': 1,
   'participants.pickupAddress.longitude': 1,

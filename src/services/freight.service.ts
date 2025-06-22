@@ -58,7 +58,7 @@ export const createFreightService = async (
 
   // Crear participante inicial
   const initialParticipant: IFreightParticipant = {
-    userId: new Types.ObjectId(userId),
+    user: new Types.ObjectId(userId),
     pickupAddress: freightData.pickupAddress,
     deliveryAddress: freightData.deliveryAddress,
     packageDimensions: {
@@ -128,7 +128,7 @@ export const joinFreightService = async (
     throw new Error('No puedes unirte a un flete con fecha vencida');
 
   // Verificar que el usuario no esté ya en el flete
-  const alreadyParticipating = freight.participants.some(p => p.userId.toString() === userId);
+  const alreadyParticipating = freight.participants.some(p => p.user.toString() === userId);
   if (alreadyParticipating) throw new Error('Ya estás participando en este flete');
 
   // Validar dimensiones
@@ -164,7 +164,7 @@ export const joinFreightService = async (
 
   // Crear nuevo participante
   const newParticipant: IFreightParticipant = {
-    userId: new Types.ObjectId(userId),
+    user: new Types.ObjectId(userId),
     pickupAddress: joinData.pickupAddress,
     deliveryAddress: joinData.deliveryAddress,
     packageDimensions: {
@@ -321,7 +321,7 @@ export const updateFreightStatusService = async (
 
   // Verificar permisos
   const isTransporter = freight.transporterId?.toString() === userId;
-  const isParticipant = freight.participants.some(p => p.userId.toString() === userId);
+  const isParticipant = freight.participants.some(p => p.user.toString() === userId);
   const user = await User.findById(userId);
   const isAdmin = user?.role === 'admin';
 
@@ -405,7 +405,7 @@ export const getFreightsService = async (
     };
   } else if (user.role === 'customer') {
     filters = {
-      'participants.userId': { $ne: new Types.ObjectId(userId) },
+      'participants.user': { $ne: new Types.ObjectId(userId) },
       status: { $in: ['requested', 'taken'] },
       scheduledDate: { $gte: getStartOfTodayUTC() }, // Incluir desde hoy en UTC
     };
@@ -426,7 +426,7 @@ export const getFreightsService = async (
 
   const freights = await Freight.find(filters)
     .populate('createdBy', 'firstName lastName phone')
-    .populate('participants.userId', 'firstName lastName phone')
+    .populate('participants.user', 'firstName lastName phone username')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -446,7 +446,7 @@ export const getUserFreightsService = async (
   const skip = (page - 1) * limit;
 
   const filters: any = {};
-  if (userId) filters['participants.userId'] = userId;
+  if (userId) filters['participants.user'] = userId;
   if (query.status) filters.status = query.status;
 
   // Aplicar filtros de fecha usando dateUtils
@@ -460,7 +460,7 @@ export const getUserFreightsService = async (
   const freights = await Freight.find(filters)
     .populate('createdBy', 'firstName lastName phone')
     .populate('transporterId', 'firstName lastName phone vehicle')
-    .populate('participants.userId', 'firstName lastName phone')
+    .populate('participants.user', 'firstName lastName phone username')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -471,25 +471,12 @@ export const getUserFreightsService = async (
 };
 
 // Obtener flete por ID con validaciones de permisos
-export const getFreightByIdService = async (
-  freightId: string,
-  userId: string
-): Promise<IFreight> => {
+export const getFreightByIdService = async (freightId: string): Promise<IFreight> => {
   const freight = await Freight.findById(freightId)
-    .populate('createdBy', 'firstName lastName phone')
     .populate('transporterId', 'firstName lastName phone vehicle')
-    .populate('participants.userId', 'firstName lastName phone');
+    .populate('participants.user', 'firstName lastName phone username');
 
   if (!freight) throw new Error('Flete no encontrado');
-
-  // Verificar permisos de acceso
-  const user = await User.findById(userId);
-  const isAdmin = user?.role === 'admin';
-  const isTransporter = freight.transporterId?.toString() === userId;
-  const isParticipant = freight.participants.some(p => p.userId.toString() === userId);
-
-  if (!isAdmin && !isTransporter && !isParticipant)
-    throw new Error('No tienes permisos para ver este flete');
 
   return freight;
 };

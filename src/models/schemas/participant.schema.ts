@@ -4,7 +4,7 @@ import { addressSchema } from './address.schema';
 
 export const participantSchema = new Schema<IFreightParticipant>(
   {
-    userId: {
+    user: {
       type: Schema.Types.ObjectId,
       ref: 'User',
       required: true,
