@@ -8,6 +8,12 @@ import {
   FreightStatus,
 } from '@/types/freight.types';
 import {
+  getStartOfTodayUTC,
+  getDateAtNoonUTC,
+  createDateFilters,
+  isTodayOrFuture,
+} from '@/utils/time.utils';
+import {
   calculateVolumeM3,
   calculatePackagePrice,
   calculateDistance,
@@ -27,6 +33,10 @@ export const createFreightService = async (
   if (!user) throw new Error('Usuario no encontrado');
   if (!user.isProfileCompleted) throw new Error('Debe completar su perfil antes de crear un flete');
   if (user.role !== 'customer') throw new Error('Solo los clientes pueden crear fletes');
+
+  // Validar que la fecha programada sea válida
+  if (!isTodayOrFuture(freightData.scheduledDate))
+    throw new Error('La fecha programada debe ser hoy o en el futuro');
 
   // Validar dimensiones del paquete
   const { length, width, height } = freightData.packageDimensions;
@@ -48,7 +58,7 @@ export const createFreightService = async (
 
   // Crear participante inicial
   const initialParticipant: IFreightParticipant = {
-    userId: new Types.ObjectId(userId),
+    user: new Types.ObjectId(userId),
     pickupAddress: freightData.pickupAddress,
     deliveryAddress: freightData.deliveryAddress,
     packageDimensions: {
@@ -71,15 +81,14 @@ export const createFreightService = async (
 
   const route = generateSuggestedRoute(routeData);
 
-  // Crear el flete
+  // Crear el flete con fecha al mediodía UTC para evitar problemas de zona horaria
   const freight = new Freight({
     createdBy: userId,
     participants: [initialParticipant],
     status: 'requested',
     totalPrice: priceCalculation.totalPrice,
     usedVolumeM3: volumeM3,
-    availableVolumeM3: 0, // Se actualizará cuando se asigne transportista
-    scheduledDate: new Date(freightData.scheduledDate),
+    scheduledDate: getDateAtNoonUTC(freightData.scheduledDate),
     suggestedRoute: {
       pickupSequence: route.pickupSequence.map(idx => ({
         participantIndex: idx,
@@ -114,8 +123,12 @@ export const joinFreightService = async (
   const freight = await Freight.findById(joinData.freightId);
   if (!freight) throw new Error('Flete no encontrado');
 
+  // Verificar que el flete aún sea válido (fecha futura o hoy)
+  if (!isTodayOrFuture(freight.scheduledDate))
+    throw new Error('No puedes unirte a un flete con fecha vencida');
+
   // Verificar que el usuario no esté ya en el flete
-  const alreadyParticipating = freight.participants.some(p => p.userId.toString() === userId);
+  const alreadyParticipating = freight.participants.some(p => p.user.toString() === userId);
   if (alreadyParticipating) throw new Error('Ya estás participando en este flete');
 
   // Validar dimensiones
@@ -151,7 +164,7 @@ export const joinFreightService = async (
 
   // Crear nuevo participante
   const newParticipant: IFreightParticipant = {
-    userId: new Types.ObjectId(userId),
+    user: new Types.ObjectId(userId),
     pickupAddress: joinData.pickupAddress,
     deliveryAddress: joinData.deliveryAddress,
     packageDimensions: {
@@ -236,6 +249,10 @@ export const assignTransporterService = async (
     throw new Error('El flete no está disponible para ser tomado');
   if (freight.transporterId) throw new Error('El flete ya tiene transportista asignado');
 
+  // Verificar que el flete aún sea válido (fecha futura o hoy)
+  if (!isTodayOrFuture(freight.scheduledDate))
+    throw new Error('No puedes tomar un flete con fecha vencida');
+
   // Calcular volumen del vehículo
   const vehicleVolumeM3 = calculateVehicleVolumeM3(
     transporter.vehicle.dimensions.length,
@@ -304,7 +321,7 @@ export const updateFreightStatusService = async (
 
   // Verificar permisos
   const isTransporter = freight.transporterId?.toString() === userId;
-  const isParticipant = freight.participants.some(p => p.userId.toString() === userId);
+  const isParticipant = freight.participants.some(p => p.user.toString() === userId);
   const user = await User.findById(userId);
   const isAdmin = user?.role === 'admin';
 
@@ -377,39 +394,39 @@ export const getFreightsService = async (
   const limit = Number(query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // Filtros base para transportistas
+  // Filtros base
   let filters: any = {};
 
   if (user.role === 'transporter') {
     filters = {
-      status: 'requested', // Solo fletes sin transportista
+      status: 'requested',
       transporterId: { $exists: false },
-      scheduledDate: { $gte: new Date() }, // Solo flete futuros
+      scheduledDate: { $gte: getStartOfTodayUTC() }, // Incluir desde hoy en UTC
     };
   } else if (user.role === 'customer') {
     filters = {
-      'participants.userId': { $ne: new Types.ObjectId(userId) }, // Excluir fletes donde el usuario ya es participante
+      'participants.user': { $ne: new Types.ObjectId(userId) },
       status: { $in: ['requested', 'taken'] },
-      scheduledDate: { $gte: new Date() }, // Solo fletes futuros
+      scheduledDate: { $gte: getStartOfTodayUTC() }, // Incluir desde hoy en UTC
     };
   }
 
-  // Aplicar filtros adicionales
-  if (query.scheduledDateFrom)
-    filters.scheduledDate = {
-      ...filters.scheduledDate,
-      $gte: new Date(query.scheduledDateFrom),
-    };
+  // Aplicar filtros de fecha adicionales usando dateUtils
+  const dateFilters = createDateFilters({
+    from: query.scheduledDateFrom,
+    to: query.scheduledDateTo,
+  });
 
-  if (query.scheduledDateTo)
+  if (dateFilters) {
     filters.scheduledDate = {
       ...filters.scheduledDate,
-      $lte: new Date(query.scheduledDateTo),
+      ...dateFilters,
     };
+  }
 
   const freights = await Freight.find(filters)
     .populate('createdBy', 'firstName lastName phone')
-    .populate('participants.userId', 'firstName lastName phone')
+    .populate('participants.user', 'firstName lastName phone username')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -429,13 +446,21 @@ export const getUserFreightsService = async (
   const skip = (page - 1) * limit;
 
   const filters: any = {};
-  if (userId) filters['participants.userId'] = userId;
+  if (userId) filters['participants.user'] = userId;
   if (query.status) filters.status = query.status;
+
+  // Aplicar filtros de fecha usando dateUtils
+  const dateFilters = createDateFilters({
+    from: query.scheduledDateFrom,
+    to: query.scheduledDateTo,
+  });
+
+  if (dateFilters) filters.scheduledDate = dateFilters;
 
   const freights = await Freight.find(filters)
     .populate('createdBy', 'firstName lastName phone')
     .populate('transporterId', 'firstName lastName phone vehicle')
-    .populate('participants.userId', 'firstName lastName phone')
+    .populate('participants.user', 'firstName lastName phone username')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -446,25 +471,12 @@ export const getUserFreightsService = async (
 };
 
 // Obtener flete por ID con validaciones de permisos
-export const getFreightByIdService = async (
-  freightId: string,
-  userId: string
-): Promise<IFreight> => {
+export const getFreightByIdService = async (freightId: string): Promise<IFreight> => {
   const freight = await Freight.findById(freightId)
-    .populate('createdBy', 'firstName lastName phone')
     .populate('transporterId', 'firstName lastName phone vehicle')
-    .populate('participants.userId', 'firstName lastName phone');
+    .populate('participants.user', 'firstName lastName phone username');
 
   if (!freight) throw new Error('Flete no encontrado');
-
-  // Verificar permisos de acceso
-  const user = await User.findById(userId);
-  const isAdmin = user?.role === 'admin';
-  const isTransporter = freight.transporterId?.toString() === userId;
-  const isParticipant = freight.participants.some(p => p.userId.toString() === userId);
-
-  if (!isAdmin && !isTransporter && !isParticipant)
-    throw new Error('No tienes permisos para ver este flete');
 
   return freight;
 };

@@ -151,11 +151,8 @@ export const getUserFreights = async (req: AuthenticatedRequest, res: Response) 
 // Obtener flete por ID
 export const getFreightById = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id!;
     const { freightId } = req.params;
-
-    const freight = await getFreightByIdService(freightId, userId);
-
+    const freight = await getFreightByIdService(freightId);
     res.status(200).json({
       message: 'Flete obtenido exitosamente',
       result: freight,

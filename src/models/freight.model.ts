@@ -3,7 +3,7 @@ import { FreightStatus, IAddress } from '@/types/freight.types';
 import { freightSchema } from './schemas/freight.schema';
 
 export interface IFreightParticipant {
-  userId: Types.ObjectId;
+  user: Types.ObjectId;
   pickupAddress: IAddress;
   deliveryAddress: IAddress;
   packageDimensions: {
@@ -59,11 +59,13 @@ export interface IFreight extends Document {
       participantIndex: number;
       address: IAddress;
       estimatedTime?: Date;
+      visited?: boolean;
     }>;
     deliverySequence: Array<{
       participantIndex: number;
       address: IAddress;
       estimatedTime?: Date;
+      visited?: boolean;
     }>;
     totalDistance: number; // distancia total de la ruta en km
   };
