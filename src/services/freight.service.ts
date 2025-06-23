@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
 import { Freight, IFreight, IFreightParticipant } from '@/models/freight.model';
 import { User } from '@/models/User.model';
+import { UserRole } from '@/types/user.types';
+import { VALID_TRANSITIONS } from '@/utils/constants';
 import {
   CreateFreightRequest,
   JoinFreightRequest,
@@ -18,12 +20,14 @@ import {
   calculatePackagePrice,
   calculateDistance,
   validatePackageDimensions,
-  generateSuggestedRoute,
   validateCanJoinFreight,
   calculateVehicleVolumeM3,
+  generateOptimizedSuggestedRoute,
 } from '@/utils/freight.utils';
 
-// Crear un nuevo flete
+// ==========================================
+// CREATE NEW FREIGHT SERVICE
+// ==========================================
 export const createFreightService = async (
   userId: string,
   freightData: CreateFreightRequest
@@ -79,7 +83,7 @@ export const createFreightService = async (
     },
   ];
 
-  const route = generateSuggestedRoute(routeData);
+  const optimizedSuggestedRoute = generateOptimizedSuggestedRoute(routeData);
 
   // Crear el flete con fecha al mediodía UTC para evitar problemas de zona horaria
   const freight = new Freight({
@@ -89,17 +93,7 @@ export const createFreightService = async (
     totalPrice: priceCalculation.totalPrice,
     usedVolumeM3: volumeM3,
     scheduledDate: getDateAtNoonUTC(freightData.scheduledDate),
-    suggestedRoute: {
-      pickupSequence: route.pickupSequence.map(idx => ({
-        participantIndex: idx,
-        address: freightData.pickupAddress,
-      })),
-      deliverySequence: route.deliverySequence.map(idx => ({
-        participantIndex: idx,
-        address: freightData.deliveryAddress,
-      })),
-      totalDistance: route.totalDistance,
-    },
+    suggestedRoute: optimizedSuggestedRoute,
   });
 
   const savedFreight = await freight.save();
@@ -109,7 +103,9 @@ export const createFreightService = async (
   return savedFreight;
 };
 
-// Unirse a un flete existente
+// ==========================================
+// JOIN FREIGHT SERVICE
+// ==========================================
 export const joinFreightService = async (
   userId: string,
   joinData: JoinFreightRequest
@@ -157,7 +153,7 @@ export const joinFreightService = async (
   );
 
   if (!validation.canJoin)
-    throw new Error(`No puedes unirte al flete: ${validation.reasons.join(', ')}`);
+    throw new Error(`Ups, no podés unirte al flete: ${validation.reasons.join(', ')}`);
 
   // Calcular precio
   const priceCalculation = calculatePackagePrice(volumeM3, distance);
@@ -184,28 +180,21 @@ export const joinFreightService = async (
     ? freight.assignedVehicle.dimensions.totalVolumeM3 - freight.usedVolumeM3
     : 0;
 
-  // Recalcular ruta sugerida si hay transportista asignado
-  if (freight.transporterId && freight.assignedVehicle) {
-    const routeData = freight.participants.map((p, index) => ({
-      index,
-      pickupAddress: p.pickupAddress,
-      deliveryAddress: p.deliveryAddress,
-    }));
+  // Recalcular ruta optimizada SIEMPRE (con o sin transportista)
+  const routeData = freight.participants.map((participant, index) => ({
+    index,
+    pickupAddress: participant.pickupAddress,
+    deliveryAddress: participant.deliveryAddress,
+  }));
 
-    const route = generateSuggestedRoute(routeData);
-    freight.suggestedRoute = {
-      pickupSequence: route.pickupSequence.map(idx => ({
-        participantIndex: idx,
-        address: freight.participants[idx].pickupAddress,
-      })),
-      deliverySequence: route.deliverySequence.map(idx => ({
-        participantIndex: idx,
-        address: freight.participants[idx].deliveryAddress,
-      })),
-      totalDistance: route.totalDistance,
-    };
-  }
+  // Generar nueva ruta optimizada
+  const optimizedSuggestedRoute = generateOptimizedSuggestedRoute(routeData);
 
+  freight.suggestedRoute = optimizedSuggestedRoute;
+  if (freight.suggestedRoute.optimizedRoute.length === 0)
+    throw new Error('No se pudo generar una ruta válida para el flete');
+
+  // Guardar el flete actualizado
   const updatedFreight = await freight.save();
 
   // TODO: create a notification for the freight creator
@@ -218,7 +207,306 @@ export const joinFreightService = async (
   return updatedFreight;
 };
 
-// Asignar transportista a un flete
+// ==========================================
+// LEAVE FREIGHT SERVICE
+// ==========================================
+export const leaveFreightService = async (
+  userId: string,
+  userRole: UserRole,
+  freightId: string
+): Promise<IFreight> => {
+  const freight = await Freight.findById(freightId);
+  if (!freight) throw new Error('Flete no encontrado');
+
+  if (userRole === 'customer') {
+    return await handleCustomerLeave(userId, freight);
+  } else if (userRole === 'transporter') {
+    return await handleTransporterLeave(userId, freight);
+  } else {
+    throw new Error('Rol no válido para abandonar flete');
+  }
+};
+
+const handleCustomerLeave = async (userId: string, freight: IFreight): Promise<IFreight> => {
+  // Verificar que el usuario está en el flete
+  const participantIndex = freight.participants.findIndex(p => p.user.toString() === userId);
+
+  if (participantIndex === -1) {
+    throw new Error('No estás participando en este flete');
+  }
+
+  // Verificar que no sea el único participante
+  if (freight.participants.length <= 1) {
+    throw new Error(
+      'No puedes abandonar el flete siendo el único participante. Usa la opción cancelar en su lugar.'
+    );
+  }
+
+  // Verificar que el flete esté en estado válido para abandonar
+  if (!['requested', 'taken'].includes(freight.status)) {
+    throw new Error('No puedes abandonar un flete que ya está en progreso o terminado');
+  }
+
+  // Obtener datos del participante que se va
+  const leavingParticipant = freight.participants[participantIndex];
+
+  // Eliminar al participante
+  freight.participants.splice(participantIndex, 1);
+
+  // Recalcular totales
+  freight.totalPrice -= leavingParticipant.price;
+  freight.usedVolumeM3 -= leavingParticipant.packageDimensions.volumeM3;
+
+  // Recalcular volumen disponible si hay vehículo asignado
+  if (freight.assignedVehicle) {
+    freight.availableVolumeM3 =
+      freight.assignedVehicle.dimensions.totalVolumeM3 - freight.usedVolumeM3;
+  }
+
+  // Regenerar ruta optimizada con los participantes restantes
+  const routeData = freight.participants.map((participant, index) => ({
+    index,
+    pickupAddress: participant.pickupAddress,
+    deliveryAddress: participant.deliveryAddress,
+  }));
+
+  const optimizedSuggestedRoute = generateOptimizedSuggestedRoute(routeData);
+  freight.suggestedRoute = optimizedSuggestedRoute;
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificación para los participantes restantes
+  // TODO: Crear notificación para el transportista (si existe)
+
+  return updatedFreight;
+};
+
+const handleTransporterLeave = async (userId: string, freight: IFreight): Promise<IFreight> => {
+  // Verificar que el usuario es el transportista del flete
+  if (!freight.transporterId || freight.transporterId.toString() !== userId) {
+    throw new Error('No eres el transportista de este flete');
+  }
+
+  // Verificar que el flete esté en estado 'taken'
+  if (freight.status !== 'taken') {
+    throw new Error('Solo puedes abandonar un flete que esté en estado "tomado"');
+  }
+
+  // Remover transportista y vehículo
+  freight.transporterId = undefined;
+  freight.assignedVehicle = undefined;
+  freight.status = 'requested';
+  freight.availableVolumeM3 = 0;
+
+  // Limpiar ruta sugerida específica del transportista (mantener solo la básica)
+  const routeData = freight.participants.map((participant, index) => ({
+    index,
+    pickupAddress: participant.pickupAddress,
+    deliveryAddress: participant.deliveryAddress,
+  }));
+
+  const basicRoute = generateOptimizedSuggestedRoute(routeData);
+  freight.suggestedRoute = basicRoute;
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificación para todos los participantes
+
+  return updatedFreight;
+};
+
+// ==========================================
+// CANCEL FREIGHT SERVICE
+// ==========================================
+export const cancelFreightService = async (
+  userId: string,
+  userRole: UserRole,
+  freightId: string,
+  cancellationReason?: string
+): Promise<IFreight> => {
+  const freight = await Freight.findById(freightId);
+  if (!freight) throw new Error('Flete no encontrado');
+
+  if (userRole === 'customer') {
+    return await handleCustomerCancel(userId, freight, cancellationReason);
+  } else if (userRole === 'transporter') {
+    return await handleTransporterCancel(userId, freight, cancellationReason);
+  } else {
+    throw new Error('Rol no válido para cancelar flete');
+  }
+};
+
+const handleCustomerCancel = async (
+  userId: string,
+  freight: IFreight,
+  cancellationReason?: string
+): Promise<IFreight> => {
+  // Verificar que sea el único participante
+  if (freight.participants.length > 1)
+    throw new Error(
+      'No puedes cancelar un flete con múltiples participantes. Usa la opción abandonar en su lugar.'
+    );
+
+  // Verificar que sea el participante del flete
+  const isParticipant = freight.participants.some(p => p.user.toString() === userId);
+  if (!isParticipant) throw new Error('No estás participando en este flete');
+
+  // Verificar que el flete esté en estado válido para cancelar
+  if (!['requested', 'taken', 'finished'].includes(freight.status))
+    throw new Error('No puedes cancelar un flete que ya está en progreso o terminado');
+
+  // Actualizar estado a cancelado
+  freight.status = 'canceled';
+  freight.cancelledAt = new Date();
+  if (cancellationReason) freight.cancellationReason = cancellationReason;
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificación para el transportista (si existe)
+
+  return updatedFreight;
+};
+
+const handleTransporterCancel = async (
+  userId: string,
+  freight: IFreight,
+  cancellationReason?: string
+): Promise<IFreight> => {
+  // Verificar que el usuario es el transportista del flete
+  if (!freight.transporterId || freight.transporterId.toString() !== userId)
+    throw new Error('No eres el transportista de este flete');
+
+  // Verificar que el flete esté en estado 'started'
+  if (freight.status !== 'started')
+    throw new Error('Solo puedes cancelar un flete que esté en estado "iniciado"');
+
+  //// Verificar que se proporcione una razón
+  //if (!cancellationReason || cancellationReason.trim().length === 0)
+  //  throw new Error('Debes proporcionar una razón para cancelar el flete');
+
+  // Actualizar estado a cancelado
+  freight.status = 'canceled';
+  freight.cancelledAt = new Date();
+  if (cancellationReason) freight.cancellationReason = cancellationReason;
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificaciones para todos los participantes
+
+  return updatedFreight;
+};
+
+// ==========================================
+// MARK STOP AS VISITED SERVICE
+// ==========================================
+export const markStopAsVisitedService = async (
+  userId: string,
+  freightId: string,
+  participantIndex: number,
+  stopType: 'pickup' | 'delivery'
+): Promise<IFreight> => {
+  const freight = await Freight.findById(freightId);
+  if (!freight) throw new Error('Flete no encontrado');
+
+  // Verificar que el usuario sea participante del flete
+  const userParticipant = freight.participants.find(p => p.user.toString() === userId);
+  if (!userParticipant) throw new Error('No estás participando en este flete');
+
+  // Verificar que el índice del participante corresponda al usuario
+  if (freight.participants[participantIndex]?.user.toString() !== userId)
+    throw new Error('Solo puedes marcar como visitados tus propios puntos');
+
+  // Verificar que el flete esté iniciado
+  if (freight.status !== 'started')
+    throw new Error('El flete debe estar iniciado para marcar puntos como visitados');
+
+  // Verificar que existe la ruta optimizada
+  if (!freight.suggestedRoute?.optimizedRoute)
+    throw new Error('No se encontró ruta optimizada para este flete');
+
+  // Encontrar el stop correspondiente
+  const stopIndex = freight.suggestedRoute.optimizedRoute.findIndex(
+    stop => stop.participantIndex === participantIndex && stop.type === stopType
+  );
+
+  if (stopIndex === -1) throw new Error('No se encontró el punto especificado en la ruta');
+
+  // Verificar que el stop anterior esté visitado (si existe)
+  if (stopIndex > 0) {
+    const previousStop = freight.suggestedRoute.optimizedRoute[stopIndex - 1];
+    if (!previousStop.visited)
+      throw new Error(
+        'Debes completarse el punto anterior antes de marcar este punto como visitado'
+      );
+  }
+
+  // Verificar que el stop no esté ya visitado
+  const currentStop = freight.suggestedRoute.optimizedRoute[stopIndex];
+  if (currentStop.visited) throw new Error('Este punto ya está marcado como visitado');
+
+  // Marcar como visitado
+  freight.suggestedRoute.optimizedRoute[stopIndex].visited = true;
+
+  // También actualizar las secuencias legacy para compatibilidad
+  if (stopType === 'pickup') {
+    const pickupStop = freight.suggestedRoute.pickupSequence.find(
+      p => p.participantIndex === participantIndex
+    );
+    if (pickupStop) pickupStop.visited = true;
+  } else {
+    const deliveryStop = freight.suggestedRoute.deliverySequence.find(
+      d => d.participantIndex === participantIndex
+    );
+    if (deliveryStop) deliveryStop.visited = true;
+  }
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificación para otros participantes y transportista
+
+  return updatedFreight;
+};
+
+// ==========================================
+// MARK FREIGHT AS FINISHED SERVICE
+// ==========================================
+export const finishFreightService = async (
+  userId: string,
+  freightId: string
+): Promise<IFreight> => {
+  const freight = await Freight.findById(freightId);
+  if (!freight) throw new Error('Flete no encontrado');
+
+  // Verificar que el usuario es el transportista
+  if (!freight.transporterId || freight.transporterId.toString() !== userId)
+    throw new Error('Solo el transportista puede finalizar el flete');
+
+  // Verificar que el flete esté iniciado
+  if (freight.status !== 'started')
+    throw new Error('El flete debe estar iniciado para poder finalizarlo');
+
+  // Verificar que todos los puntos estén visitados
+  if (!freight.suggestedRoute?.optimizedRoute)
+    throw new Error('No se encontró ruta para verificar');
+
+  const allVisited = freight.suggestedRoute.optimizedRoute.every(stop => stop.visited);
+  if (!allVisited)
+    throw new Error('Todos los puntos deben estar visitados antes de finalizar el flete');
+
+  // Finalizar flete
+  freight.status = 'finished';
+  freight.completedAt = new Date();
+
+  const updatedFreight = await freight.save();
+
+  // TODO: Crear notificaciones para todos los participantes
+
+  return updatedFreight;
+};
+
+// ==========================================
+// ASSIGN TRANSPORTER SERVICE
+// ==========================================
 export const assignTransporterService = async (
   transporterId: string,
   freightId: string
@@ -285,18 +573,10 @@ export const assignTransporterService = async (
     deliveryAddress: p.deliveryAddress,
   }));
 
-  const route = generateSuggestedRoute(routeData);
-  freight.suggestedRoute = {
-    pickupSequence: route.pickupSequence.map(idx => ({
-      participantIndex: idx,
-      address: freight.participants[idx].pickupAddress,
-    })),
-    deliverySequence: route.deliverySequence.map(idx => ({
-      participantIndex: idx,
-      address: freight.participants[idx].deliveryAddress,
-    })),
-    totalDistance: route.totalDistance,
-  };
+  const optimizedSuggestedRoute = generateOptimizedSuggestedRoute(routeData);
+  freight.suggestedRoute = optimizedSuggestedRoute;
+  if (freight.suggestedRoute.optimizedRoute.length === 0)
+    throw new Error('No se pudo generar una ruta válida para el flete');
 
   const updatedFreight = await freight.save();
 
@@ -309,7 +589,9 @@ export const assignTransporterService = async (
   return updatedFreight;
 };
 
-//  Actualizar estado del flete
+// ==========================================
+// UPDATE FREIGHT STATUS SERVICE
+// ==========================================
 export const updateFreightStatusService = async (
   userId: string,
   freightId: string,
@@ -328,17 +610,8 @@ export const updateFreightStatusService = async (
   if (!isTransporter && !isParticipant && !isAdmin)
     throw new Error('No tienes permisos para actualizar este flete');
 
-  // Validar transiciones de estado
-  const validTransitions: { [key: string]: string[] } = {
-    requested: ['taken', 'canceled'],
-    taken: ['started', 'canceled'],
-    started: ['finished', 'canceled'],
-    finished: [],
-    canceled: [],
-  };
-
   const currentStatus = freight.status;
-  if (!validTransitions[currentStatus]?.includes(newStatus))
+  if (!VALID_TRANSITIONS[currentStatus]?.includes(newStatus))
     throw new Error(`No se puede cambiar el estado de '${currentStatus}' a '${newStatus}'`);
 
   // Solo el transportista puede cambiar a estados operativos
@@ -381,6 +654,9 @@ export const updateFreightStatusService = async (
   return updatedFreight;
 };
 
+// ==========================================
+// GET FREIGHTS SERVICE
+// ==========================================
 export const getFreightsService = async (
   userId: string,
   query: FreightQuery = {}
@@ -434,9 +710,12 @@ export const getFreightsService = async (
   return { freights, total };
 };
 
-// Obtener fletes de un usuario (como cliente)
+// ==========================================
+// GET USER FREIGHTS SERVICE
+// ==========================================
 export const getUserFreightsService = async (
   userId?: string,
+  role?: UserRole,
   query: FreightQuery = {}
 ): Promise<{ freights: IFreight[]; total: number }> => {
   const page = Number(query.page) || 1;
@@ -444,7 +723,8 @@ export const getUserFreightsService = async (
   const skip = (page - 1) * limit;
 
   const filters: any = {};
-  if (userId) filters['participants.user'] = userId;
+  if (userId && role === 'customer') filters['participants.user'] = userId;
+  if (userId && role === 'transporter') filters.transporterId = userId;
   if (query.status) filters.status = query.status;
 
   // Aplicar filtros de fecha usando dateUtils
@@ -468,7 +748,9 @@ export const getUserFreightsService = async (
   return { freights, total };
 };
 
-// Obtener flete por ID con validaciones de permisos
+// ==========================================
+// GET FREIGHT BY ID SERVICE
+// ==========================================
 export const getFreightByIdService = async (freightId: string): Promise<IFreight> => {
   const freight = await Freight.findById(freightId)
     .populate('transporterId', 'firstName lastName phone vehicle')

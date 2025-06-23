@@ -10,3 +10,11 @@ export const FREIGHT_CONSTANTS = {
   MIN_PACKAGE_DIMENSION_CM: 1,
   VOLUME_CONVERSION_FACTOR: 1000000, // cm³ a m³
 } as const;
+
+export const VALID_TRANSITIONS: { [key: string]: string[] } = {
+  requested: ['taken', 'canceled'],
+  taken: ['started', 'canceled'],
+  started: ['finished', 'canceled'],
+  finished: [],
+  canceled: [],
+};

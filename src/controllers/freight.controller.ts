@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '@/types/auth.types';
+import { canMarkStopAsVisited, getNextDestination, getRouteProgress } from '@/utils/freight.utils';
 import {
   createFreightService,
   joinFreightService,
@@ -8,9 +9,12 @@ import {
   getFreightsService,
   getUserFreightsService,
   getFreightByIdService,
+  leaveFreightService,
+  cancelFreightService,
+  markStopAsVisitedService,
+  finishFreightService,
 } from '@/services/freight.service';
 
-// Crear un nuevo flete
 export const createFreight = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id!;
@@ -26,7 +30,6 @@ export const createFreight = async (req: AuthenticatedRequest, res: Response) =>
   }
 };
 
-// Unirse a un flete existente
 export const joinFreight = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id!;
@@ -49,7 +52,23 @@ export const joinFreight = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// Asignar transportista a un flete (tomar flete)
+export const startFreight = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const { freightId } = req.params;
+
+    const freight = await updateFreightStatusService(userId, freightId, 'started');
+
+    res.status(200).json({
+      message: 'Flete iniciado exitosamente',
+      result: freight,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
 export const takeFreight = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const transporterId = req.user?.id!;
@@ -67,7 +86,6 @@ export const takeFreight = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// Actualizar estado del flete
 export const updateFreightStatus = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id!;
@@ -86,7 +104,6 @@ export const updateFreightStatus = async (req: AuthenticatedRequest, res: Respon
   }
 };
 
-// Obtener fletes disponibles (segun role)
 export const getFreights = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id!;
@@ -116,15 +133,15 @@ export const getFreights = async (req: AuthenticatedRequest, res: Response) => {
   }
 };
 
-// Obtener fletes del usuario (como participante)
 export const getUserFreights = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user?.id!;
+    const role = req.user?.role!;
     const query = req.query;
 
     if (req.user?.role === 'transporter') query.transporterId = userId;
 
-    const { freights, total } = await getUserFreightsService(userId, query);
+    const { freights, total } = await getUserFreightsService(userId, role, query);
 
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
@@ -148,7 +165,6 @@ export const getUserFreights = async (req: AuthenticatedRequest, res: Response) 
   }
 };
 
-// Obtener flete por ID
 export const getFreightById = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { freightId } = req.params;
@@ -163,67 +179,10 @@ export const getFreightById = async (req: AuthenticatedRequest, res: Response) =
   }
 };
 
-// Validar si un usuario puede unirse a un flete (endpoint de validación)
-export const validateJoinFreight = async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const userId = req.user?.id!;
-    const { freightId } = req.params;
-    const { pickupAddress, deliveryAddress, packageDimensions } = req.body;
-
-    // Importar las utilidades necesarias
-    const { validateCanJoinFreight, calculateVolumeM3, validatePackageDimensions } = await import(
-      '@/utils/freight.utils'
-    );
-    const { Freight } = await import('@/models/freight.model');
-
-    // Obtener el flete
-    let freight = await Freight.findById(freightId);
-    if (!freight) throw new Error('Flete no encontrado');
-
-    // Validar dimensiones
-    const { length, width, height } = packageDimensions;
-    const dimensionValidation = validatePackageDimensions(length, width, height);
-    if (!dimensionValidation.isValid) {
-      res.status(400).json({
-        error: `Dimensiones inválidas: ${dimensionValidation.errors.join(', ')}`,
-      });
-      return;
-    }
-
-    // Calcular volumen
-    const volumeM3 = calculateVolumeM3(length, width, height);
-
-    // Validar si puede unirse
-    const validation = validateCanJoinFreight(
-      freight,
-      pickupAddress.latitude,
-      pickupAddress.longitude,
-      deliveryAddress.latitude,
-      deliveryAddress.longitude,
-      volumeM3
-    );
-
-    res.status(200).json({
-      message: 'Validación completada',
-      result: {
-        canJoin: validation.canJoin,
-        reasons: validation.reasons,
-        availableVolumeM3: validation.availableVolumeM3,
-        packageVolumeM3: volumeM3,
-      },
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
-    res.status(400).json({ error: message });
-  }
-};
-
-// Calcular precio estimado para un paquete
 export const calculatePackagePrice = async (req: Request, res: Response) => {
   try {
     const { packageDimensions, pickupAddress, deliveryAddress } = req.body;
 
-    // Importar utilidades
     const {
       calculateVolumeM3,
       calculatePackagePrice: calculatePrice,
@@ -231,7 +190,6 @@ export const calculatePackagePrice = async (req: Request, res: Response) => {
       validatePackageDimensions,
     } = await import('@/utils/freight.utils');
 
-    // Validar dimensiones
     const { length, width, height } = packageDimensions;
     const dimensionValidation = validatePackageDimensions(length, width, height);
     if (!dimensionValidation.isValid) {
@@ -241,7 +199,6 @@ export const calculatePackagePrice = async (req: Request, res: Response) => {
       return;
     }
 
-    // Calcular volumen y distancia
     const volumeM3 = calculateVolumeM3(length, width, height);
     const distance = calculateDistance(
       pickupAddress.latitude,
@@ -250,7 +207,6 @@ export const calculatePackagePrice = async (req: Request, res: Response) => {
       deliveryAddress.longitude
     );
 
-    // Calcular precio
     const priceCalculation = calculatePrice(volumeM3, distance);
 
     res.status(200).json({
@@ -262,6 +218,173 @@ export const calculatePackagePrice = async (req: Request, res: Response) => {
           volumeM3,
         },
         distance,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const leaveFreight = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const role = req.user?.role!;
+    const { freightId } = req.params;
+
+    const freight = await leaveFreightService(userId, role, freightId);
+
+    res.status(200).json({
+      message: 'Has abandonado el flete exitosamente',
+      result: freight,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const cancelFreight = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const role = req.user?.role!;
+    const { freightId } = req.params;
+    const { cancellationReason } = req.body;
+
+    const freight = await cancelFreightService(userId, role, freightId, cancellationReason);
+
+    res.status(200).json({
+      message: 'Flete cancelado exitosamente',
+      result: freight,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const markStopAsVisited = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const { freightId } = req.params;
+    const { participantIndex, stopType } = req.body;
+
+    if (!['pickup', 'delivery'].includes(stopType)) {
+      res.status(400).json({ error: 'stopType debe ser "pickup" o "delivery"' });
+      return;
+    }
+
+    const freight = await markStopAsVisitedService(userId, freightId, participantIndex, stopType);
+
+    const actionText = stopType === 'pickup' ? 'recogida' : 'entrega';
+
+    res.status(200).json({
+      message: `Punto de ${actionText} marcado como visitado exitosamente`,
+      result: freight,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const finishFreight = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const { freightId } = req.params;
+
+    const freight = await finishFreightService(userId, freightId);
+
+    res.status(200).json({
+      message: 'Flete finalizado exitosamente',
+      result: freight,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const getFreightProgress = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { freightId } = req.params;
+    const freight = await getFreightByIdService(freightId);
+
+    const progress = getRouteProgress(freight);
+    const nextDestination = getNextDestination(freight);
+
+    res.status(200).json({
+      message: 'Progreso del flete obtenido exitosamente',
+      result: {
+        progress,
+        nextDestination,
+        routeCompleted: progress.percentage === 100,
+        freight: {
+          _id: freight._id,
+          status: freight.status,
+          totalStops: freight.suggestedRoute?.totalStops || 0,
+          estimatedDuration: freight.suggestedRoute?.estimatedDuration || 0,
+        },
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const checkStopPermissions = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const userId = req.user?.id!;
+    const { freightId } = req.params;
+    const { participantIndex, stopType } = req.query;
+
+    if (
+      typeof participantIndex !== 'string' ||
+      !['pickup', 'delivery'].includes(stopType as string)
+    ) {
+      res.status(400).json({ error: 'Parámetros inválidos' });
+      return;
+    }
+
+    const freight = await getFreightByIdService(freightId);
+    const canMark = canMarkStopAsVisited(
+      freight,
+      userId,
+      parseInt(participantIndex),
+      stopType as 'pickup' | 'delivery'
+    );
+
+    res.status(200).json({
+      message: 'Permisos verificados exitosamente',
+      result: canMark,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Ha ocurrido un error';
+    res.status(400).json({ error: message });
+  }
+};
+
+export const getFreightRoute = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { freightId } = req.params;
+    const freight = await getFreightByIdService(freightId);
+
+    if (!freight.suggestedRoute) {
+      res.status(404).json({ error: 'No se encontró ruta para este flete' });
+      return;
+    }
+
+    const progress = getRouteProgress(freight);
+    const nextDestination = getNextDestination(freight);
+
+    res.status(200).json({
+      message: 'Ruta del flete obtenida exitosamente',
+      result: {
+        ...freight.suggestedRoute,
+        progress,
+        nextDestination,
+        routeCompleted: progress.percentage === 100,
       },
     });
   } catch (error) {
