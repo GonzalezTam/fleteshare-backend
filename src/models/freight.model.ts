@@ -1,5 +1,5 @@
 import { model, Document, Types } from 'mongoose';
-import { FreightStatus, IAddress } from '@/types/freight.types';
+import { FreightStatus, IAddress, ISuggestedRoute } from '@/types/freight.types';
 import { freightSchema } from './schemas/freight.schema';
 
 export interface IFreightParticipant {
@@ -54,21 +54,7 @@ export interface IFreight extends Document {
   cancellationReason?: string;
 
   // Ruta sugerida (se calculará al asignar transportista)
-  suggestedRoute?: {
-    pickupSequence: Array<{
-      participantIndex: number;
-      address: IAddress;
-      estimatedTime?: Date;
-      visited?: boolean;
-    }>;
-    deliverySequence: Array<{
-      participantIndex: number;
-      address: IAddress;
-      estimatedTime?: Date;
-      visited?: boolean;
-    }>;
-    totalDistance: number; // distancia total de la ruta en km
-  };
+  suggestedRoute?: ISuggestedRoute;
 
   // Metadatos
   createdAt: Date;

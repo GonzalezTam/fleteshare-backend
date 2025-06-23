@@ -1,4 +1,4 @@
-export type FreightStatus = 'requested' | 'taken' | 'started' | 'going' | 'finished' | 'canceled';
+export type FreightStatus = 'requested' | 'taken' | 'started' | 'finished' | 'canceled';
 
 export interface IAddress {
   street: string;
@@ -42,16 +42,48 @@ export interface IAssignedVehicle {
   dimensions: IVehicleDimensions;
 }
 
+export interface RouteStop {
+  participantIndex: number;
+  type: 'pickup' | 'delivery';
+  address: {
+    street: string;
+    number: string;
+    city: string;
+    state: string;
+    country: string;
+    postalCode: string;
+    latitude: number;
+    longitude: number;
+    formattedAddress: string;
+    neighborhood: string;
+  };
+  visited: boolean;
+  estimatedArrivalTime?: Date; // Opcional: tiempo estimado de llegada
+  distanceFromPrevious?: number; // Distancia desde la parada anterior
+  _id?: string;
+}
+
 export interface IRoutePoint {
   participantIndex: number;
   address: IAddress;
+  visited: boolean;
   estimatedTime?: Date;
+  _id?: string;
 }
 
 export interface ISuggestedRoute {
   pickupSequence: IRoutePoint[];
   deliverySequence: IRoutePoint[];
+  optimizedRoute: RouteStop[];
   totalDistance: number;
+  totalStops: number;
+  estimatedDuration?: number; // En minutos
+}
+
+export interface IRouteProgress {
+  completed: number;
+  total: number;
+  percentage: number;
 }
 
 export interface IFreight {
@@ -60,7 +92,7 @@ export interface IFreight {
   participants: IFreightParticipant[];
   transporterId?: string;
   status: FreightStatus;
-  assignedVehicle?: IAssignedVehicle;
+  assignedVehicle: IAssignedVehicle | null;
   totalPrice: number;
   usedVolumeM3: number;
   availableVolumeM3: number;

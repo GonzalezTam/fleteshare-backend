@@ -1,8 +1,8 @@
 import { Schema } from 'mongoose';
 import { FREIGHT_CONSTANTS } from '@/utils/constants';
 import { IFreight, IFreightParticipant } from '../freight.model';
-import { addressSchema } from './address.schema';
 import { participantSchema } from './participant.schema';
+import { suggestedRouteSchema } from './suggestedRoute.schema';
 
 export const freightSchema = new Schema<IFreight>(
   {
@@ -28,18 +28,22 @@ export const freightSchema = new Schema<IFreight>(
     },
     status: {
       type: String,
-      enum: ['requested', 'taken', 'started', 'going', 'finished', 'canceled'],
+      enum: ['requested', 'taken', 'started', 'finished', 'canceled'],
       default: 'requested',
       index: true,
     },
     assignedVehicle: {
-      plate: { type: String },
-      dimensions: {
-        length: { type: Number }, // cm
-        width: { type: Number }, // cm
-        height: { type: Number }, // cm
-        totalVolumeM3: { type: Number }, // m³
+      type: {
+        plate: { type: String, required: true },
+        dimensions: {
+          length: { type: Number, required: true }, // cm
+          width: { type: Number, required: true }, // cm
+          height: { type: Number, required: true }, // cm
+          totalVolumeM3: { type: Number, required: true }, // m³
+        },
       },
+      required: false,
+      default: null,
     },
     totalPrice: {
       type: Number,
@@ -75,23 +79,8 @@ export const freightSchema = new Schema<IFreight>(
       type: String,
     },
     suggestedRoute: {
-      pickupSequence: [
-        {
-          participantIndex: { type: Number, required: true },
-          address: { type: addressSchema, required: true },
-          estimatedTime: { type: Date },
-          visited: { type: Boolean, default: false },
-        },
-      ],
-      deliverySequence: [
-        {
-          participantIndex: { type: Number, required: true },
-          address: { type: addressSchema, required: true },
-          estimatedTime: { type: Date },
-          visited: { type: Boolean, default: false },
-        },
-      ],
-      totalDistance: { type: Number, required: true, min: 0 },
+      type: suggestedRouteSchema,
+      required: false,
     },
   },
   {
@@ -112,6 +101,10 @@ freightSchema.index({
   'participants.deliveryAddress.latitude': 1,
   'participants.deliveryAddress.longitude': 1,
 });
+
+// Índices para la nueva ruta optimizada
+freightSchema.index({ 'suggestedRoute.optimizedRoute.participantIndex': 1 });
+freightSchema.index({ 'suggestedRoute.optimizedRoute.visited': 1 });
 
 // Middleware para validar que el transportista tenga vehículo asignado cuando el status es 'taken'
 freightSchema.pre('save', function (next) {
@@ -137,8 +130,6 @@ freightSchema.methods.isWithinRange = function (
   userDeliveryLat: number,
   userDeliveryLng: number
 ): boolean {
-  // Verificar que tanto el pickup como el delivery estén dentro del rango
-  // de al menos un participante existente
   return this.participants.some((participant: IFreightParticipant) => {
     const pickupDistance = this.calculateDistance(
       userPickupLat,
@@ -178,4 +169,33 @@ freightSchema.methods.calculateDistance = function (
       Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
+};
+
+// Métodos para manejar la ruta optimizada
+freightSchema.methods.getRouteProgress = function () {
+  if (!this.suggestedRoute?.optimizedRoute) {
+    return { completed: 0, total: 0, percentage: 0 };
+  }
+
+  const total = this.suggestedRoute.optimizedRoute.length;
+  const completed = this.suggestedRoute.optimizedRoute.filter((stop: any) => stop.visited).length;
+  const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+  return { completed, total, percentage };
+};
+
+freightSchema.methods.getNextDestination = function () {
+  if (!this.suggestedRoute?.optimizedRoute) {
+    return null;
+  }
+
+  return this.suggestedRoute.optimizedRoute.find((stop: any) => !stop.visited) || null;
+};
+
+freightSchema.methods.isRouteCompleted = function () {
+  if (!this.suggestedRoute?.optimizedRoute) {
+    return false;
+  }
+
+  return this.suggestedRoute.optimizedRoute.every((stop: any) => stop.visited);
 };
